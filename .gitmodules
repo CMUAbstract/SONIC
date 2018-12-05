@@ -1,0 +1,30 @@
+[submodule "tools/maker"]
+	path = tools/maker
+	url = https://github.com/CMUAbstract/maker
+[submodule "ext/libdnn"]
+	path = ext/libdnn
+	url = https://github.com/CMUAbstract/libdnn
+[submodule "ext/libdsp"]
+	path = ext/libdsp
+	url = https://github.com/CMUAbstract/libdsp
+[submodule "ext/libmspdriver"]
+	path = ext/libmspdriver
+	url = https://github.com/CMUAbstract/libmspdriver
+[submodule "ext/libalpaca"]
+	path = ext/libalpaca
+	url = https://github.com/G-ram/libalpaca
+[submodule "ext/libmsp"]
+	path = ext/libmsp
+	url = https://github.com/CMUAbstract/libmsp
+[submodule "ext/libio"]
+	path = ext/libio
+	url = https://github.com/CMUAbstract/libio
+[submodule "ext/libfixed"]
+	path = ext/libfixed
+	url = https://github.com/CMUAbstract/libfixed
+[submodule "ext/libmat"]
+	path = ext/libmat
+	url = https://github.com/CMUAbstract/libmat
+[submodule "ext/libmspbuiltins"]
+	path = ext/libmspbuiltins
+	url = https://github.com/CMUAbstract/libmspbuiltins
