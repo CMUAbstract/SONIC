@@ -3,7 +3,7 @@
 #include <libdnn/mem.h>
 #include <libfixed/fixed.h>
 
-#define FC1_WMH_LEN5456
+#define FC1_WMH_LEN 5456
 
 __ro_hifram fixed fc1_wmh[5456] = {
     F_LIT(-0.216094523668),   F_LIT(-0.195210695267),
@@ -3203,7 +3203,7 @@ __ro_hifram uint16_t fc1_wmh_sizes[101] = {
     5456, 5456, 5456, 5456, 5456, 5456, 5456, 5456, 5456, 5456, 5456, 5456,
     5456, 5456, 5456, 5456, 5456};
 
-#define FC1_WMV_LEN1892
+#define FC1_WMV_LEN 1892
 
 __ro_hifram fixed fc1_wmv[1892] = {
     F_LIT(0.0834532976151),    F_LIT(0.222643136978),

@@ -66,7 +66,7 @@ def write_header(name, mats):
 			indptr_str = str(indptr.flatten().tolist())
 			indptr_str = indptr_str.replace('[', '{').replace(']', '}')
 
-			contents += '#define ' + mat_name.upper() + '_LEN' + \
+			contents += '#define ' + mat_name.upper() + '_LEN ' + \
 				str(len(data)) + '\n\n'
 
 			contents += '__ro_hifram fixed ' + mat_name + '[' + \
