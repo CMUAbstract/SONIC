@@ -21,8 +21,8 @@ export LIBMSP_DCO_FREQ = $(MAIN_CLOCK_FREQ)
 BACKEND ?= sonic
 CONSOLE ?=
 # Make sure this is set when running intermittently!!
-INTERMITTENT ?= 1
-CONT ?=
+INTERMITTENT ?= 
+CONT ?= 1
 FIXED_TEST ?=
 
 MAT_BUF_SIZE ?= 0x310
@@ -51,16 +51,19 @@ override CFLAGS += -DCONFIG_CONT=1
 endif
 
 ifeq ($(BACKEND), tails)
-export LIBDNN_TAILS = 1
-DEPS += libdsp libmspdriver
+export LIBDNN_LEA = 1
+SHARED_DEPS += libdsp libmspdriver
 endif
 
 export LIBDNN_BACKEND = $(BACKEND)
+export LIBDNN_TILE_SIZE = 128
 export LIBDNN_MAT_BUF_SIZE = $(MAT_BUF_SIZE)
 export LIBDNN_LAYER_BUF_SIZE = $(LAYER_BUF_SIZE)
 
 # Please take note of the warnings disabled
 override CFLAGS += -Wno-incompatible-pointer-types -Wno-int-to-pointer-cast
+override CC_LD_FLAGS += -mlarge
 
+export CC_LD_FLAGS
 export CFLAGS
 include tools/maker/Makefile

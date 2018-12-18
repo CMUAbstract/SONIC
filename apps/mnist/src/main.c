@@ -338,13 +338,13 @@ void task_compute() {
 		MAT_DUMP(b1, 0);
 		PRINTF("\r\n Layer 6");
 
-		MAT_RESHAPE(b2, 100, 12, 12);
+		MAT_RESHAPE(b2, 100, 8, 8);
 		params.stride[1] = 1;
 		params.stride[2] = 1;
 		mat_t *w_ptr = &mat_conv2_w;
 		mat_t *b_ptr = &mat_conv2_b;
 		// Assumes b, w, dest, src in that order
-		PUSH_STACK(mat_stack, b_ptr, w_ptr, b2, b1);
+		PUSH_STACK(mat_stack, NULL, w_ptr, b2, b1);
 
 		scratch_bak[0] = 7;
 		write_to_gbuf((uint8_t *)(scratch_bak), 

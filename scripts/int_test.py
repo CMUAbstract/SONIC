@@ -37,11 +37,28 @@ class Graph:
 		else:
 			return node.op(node.name, self.eval(node.a), self.eval(node.b))
 
+FIXED_ENABLE = 1
+F_N = 5
+F_ONE = 1 << F_N
+F_K = 1 << (F_N - 1)
+to_fixed = lambda x: float(int(x * F_ONE))
+to_fixed_vectorized = np.vectorize(to_fixed)
+fixed_round = lambda x: float(int(x + F_K) >> F_N)
+fixed_round_vectorized = np.vectorize(fixed_round)
+to_float = lambda x: float(x) / F_ONE
+to_float_vectorized = np.vectorize(to_float)
+
+if not FIXED_ENABLE:
+	identity = lambda x: x
+	to_fixed_vectorized = np.vectorize(identity)
+	fixed_round_vectorized = np.vectorize(identity)
+	to_float_vectorized = np.vectorize(identity)
+
 def weight(name):
 	global file_path
 	path = os.path.join(file_path, name + '.param')
 	with open(path, 'r') as f:
-		return pickle.load(f)
+		return to_fixed_vectorized(pickle.load(f))
 
 def relu(name, a):
 	return np.fabs(np.multiply(a, a > 0))
@@ -73,7 +90,7 @@ def shuffle(name, a):
 	return a[:,permutation]
 
 def mul(name, a, b):
-	return np.multiply(a, b)
+	return fixed_round_vectorized(np.multiply(a, b))
 
 def add(name, a, b):
 	if len(b.shape) == 1:
@@ -89,7 +106,7 @@ def conv_add(name, a, b):
 	return np.stack(stack, axis=0)
 
 def mmul(name, a, b):
-	return np.dot(a, b)
+	return fixed_round_vectorized(np.dot(a, b))
 
 def conv(name, a, b):
 	filter = a
@@ -102,7 +119,7 @@ def conv(name, a, b):
 			stack.append(signal.correlate(b[l], filter[l], mode='valid'))
 		else:
 			stack.append(signal.correlate(b, filter[l], mode='valid'))
-	return np.stack(stack, axis=0)
+	return fixed_round_vectorized(np.stack(stack, axis=0))
 
 def rand_matrix(shape):
 	return np.rand_matrix(-5, 5, size=shape)
@@ -205,8 +222,8 @@ def main(args):
 
 	graph.append('conv2_w', weight)
 	graph.append('conv2_m', weight)
-	graph.append('conv2_mw_', mul, 'conv2_w', 'conv2_m')
-	graph.append('conv2_mw', permute, 'conv2_mw_')
+	graph.append('conv2_wm_', mul, 'conv2_w', 'conv2_m')
+	graph.append('conv2_wm', permute, 'conv2_wm_')
 	graph.append('conv2_b', weight)
 
 	graph.append('fc1_wh', weight)
@@ -232,7 +249,7 @@ def main(args):
 	graph.append('conv1squeeze', squeeze, 'conv1r')
 	graph.append('conv1max', maxpool2x2, 'conv1squeeze')
 
-	graph.append('conv2', conv, 'conv2_mw', 'conv1max')
+	graph.append('conv2', conv, 'conv2_wm', 'conv1max')
 	graph.append('conv2b', conv_add, 'conv2', 'conv2_b')
 	graph.append('conv2r', relu, 'conv2b')
 	graph.append('conv2max', maxpool2x2, 'conv2r')
