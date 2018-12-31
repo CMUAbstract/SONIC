@@ -72,8 +72,8 @@ The following list of commands summarizes how to build the two example applicati
 Executables will appear in the bld directory of the respective application (e.g. `apps/mnist/bld/gcc/mnist.out`). In order to run on the device use mspdebug. Run,
 
 1. `mspdebug -v 3300 -d /dev/ttyACM0 tilib`
-2. > `prog apps/mnist/bld/gcc/mnist.out`
-3. > `run`
+2. >> `prog apps/mnist/bld/gcc/mnist.out`
+3. >> `run`
 
 ### SONIC
 
