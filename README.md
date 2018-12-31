@@ -15,36 +15,36 @@ We utilize a custom build system that builds all library dependencies as well as
 
 ```
 app/
-	mnist/
-		src/
-			headers/
-				conv1.h
-				conv2.h
-				fc1.h
-				fc2.h
-		main.c
-	test/
-		...
+    mnist/
+        src/
+            headers/
+                conv1.h
+                conv2.h
+                fc1.h
+                fc2.h
+        main.c
+    test/
+        ...
 ext/
-	libfixed/
-	libdnn/
-	libmat/
-	...
+    libfixed/
+    libdnn/
+    libmat/
+    ...
 params/
-	mnist/
-		conv1_md.param
-		...
-	test/
-		...
+    mnist/
+        conv1_md.param
+        ...
+    test/
+        ...
 scripts/
-	gen_headers.py
-	input.py
-	int_test.py
-	tf_test.py
-	unit_test.py
+    gen_headers.py
+    input.py
+    int_test.py
+    tf_test.py
+    unit_test.py
 tools/
-	maker/
-		...
+    maker/
+        ...
 ```
 `app/` contains the `mnist/` and `test/` example applications. MNIST is an implementation of LeNet while test contains a series of unit tests. Source files can be found in their respective `src/` directories. Weights can be found in their respective `src/headers/` directories.
 
@@ -62,11 +62,21 @@ The following list of commands summarizes how to build the two example applicati
 1. Clean dependencies: `make apps/<APP>/bld/gcc/depclean`
 2. Build dependencies: `make apps/<APP>/bld/gcc/depclean`
 3. Build target: `make apps/<APP>/bld/gcc/all BACKEND=sonic`
-	- `BACKEND` determines which backend to use. Set to sonic for SONIC, tails for TAILS.
-	- `CONSOLE` set to one to enable printf debugging.
-	- `CONT` set to one if running on continuous power
-	- `INTERMITTENT` set to one if running on intermittent power.
-	- **NOTE:** when changing build arguments remember to run commands 1 and 2. Since build arguments only change what is valid code in the files, make will not see any changes to dependencies, so a full clean must be done in order for the build arguments to take effect.
+    - `BACKEND` determines which backend to use. Set to sonic for SONIC, tails for TAILS.
+    - `CONSOLE` set to one to enable printf debugging.
+    - `CONT` set to one if running on continuous power
+    - `INTERMITTENT` set to one if running on intermittent power.
+    - **NOTE:** when changing build arguments remember to run commands 1 and 2. Since build arguments only change what is valid code in the files, make will not see any changes to dependencies, so a full clean must be done in order for the build arguments to take effect.
+
+### Flashing
+Executables will appear in the bld directory of the respective application (e.g. `apps/mnist/bld/gcc/mnist.out`). In order to run on the device use mspdebug. Run,
+
+1. `mspdebug -v 3300 -d /dev/ttyACM0 tilib`
+2. > `prog apps/mnist/bld/gcc/mnist.out`
+3. > `run`
+
+### SONIC
+
 
 
 
