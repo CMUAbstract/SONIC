@@ -137,7 +137,7 @@ Some operations like convolution take other parameters. These parameters include
 #### Helpful Fixed-point Operations
 * `F_LIT(2.34)` convert a floating-point number to fixed-point
 * `F_TO_FLOAT(345)` convert a fixed-point number to floating-point
-* **NOTE:** see fixed.h in libfixed for a list of all other fixed-point operations supported. Also see Makefile.options in libfixed for more configuration operations of the library.
+* **NOTE:** see `fixed.h` in libfixed for a list of all other fixed-point operations supported. Also see `Makefile.options` in libfixed for more configuration options of the library.
 
 ### libdnn
 libdnn contains the source of both SONIC and TAILS. The seires of Makefiles handle different options for each backend and also determine the backend being built. The `src` folder contains shared source files as well as `sonic`, `tails`, and `include` directories. `include` contains the header files required for linking. `sonic` contains the SONIC specific files and `tails` contains the same for the TAILS backend.
@@ -151,19 +151,141 @@ libdnn contains the source of both SONIC and TAILS. The seires of Makefiles hand
 
 Both `sonic/` and `tails/` contain the following files:
 
-* nonlinear.c – contains relu function
-* task\_dm\_conv.c – dense matrix-matrix convolution
-* task\_ds\_add.c – dense scalar addition
-* task\_ds\_mul.c – dense scalar multiplication
-* task\_sm\_conv.c – sparse-dense matrix-matrix convolution (weights sparse, activations dense)
-* task\_svm\_mul.c – sparse matrix-vector multiplication (weights sparse, activation vector dense)
-* task\_dm\_add.c – dense matrix addition
-* task\_dm\_mul.c – dense matrix-vector multiplication
-* task\_ds\_div.c – dense scalar division
-* task\_ds\_zero.c – dense zeroing function (sets all values in matrix to zero)
-* task\_sm\_mul.c – sparse matrix-matrix multiplication (partially implemented)
+* `nonlinear.c` – contains relu function
+* `task_dm_conv.c` – dense matrix-matrix convolution
+* `task_ds_add.c` – dense scalar addition
+* `task_ds_mul.c` – dense scalar multiplication
+* `task_sm_conv.c` – sparse-dense matrix-matrix convolution (weights sparse, activations dense)
+* `task_svm_mul.c` – sparse matrix-vector multiplication (weights sparse, activation vector dense)
+* `task_dm_add.c` – dense matrix addition
+* `task_dm_mul.c` – dense matrix-vector multiplication
+* `task_ds_div.c` – dense scalar division
+* `task_ds_zero.c` – dense zeroing function (sets all values in matrix to zero)
+* `task_sm_mul.c` – sparse matrix-matrix multiplication (partially implemented)
 
 Some of the above implementations are shared between SONIC and TAILS because sometimes it was impossible to efficiently leverage hardware acceleration.
+
+#### SONIC task_dm_conv overview
+All operations written as part of SONIC have a similar form to the commented example below:
+
+```
+// Dense matrix-matrix convolution (3D)
+void task_dm_conv() {
+        mat_t *src = PEEK_STACK(mat_stack, 0); // Pop source matrix off stack
+        mat_t *dest = PEEK_STACK(mat_stack, 1); // Pop destination matrix off stack
+        mat_t *inter = buffer; // Secondary buffer
+        mat_t *filter = PEEK_STACK(mat_stack, 2); // Pop filter matrix off stack
+
+        uint16_t rows = MAT_GET_DIM(dest, 0); // Get rows
+        uint16_t cols = MAT_GET_DIM(dest, 1); // Get columns
+        MAT_RESHAPE(inter, rows, cols); // Reshape secondary buffer to match shape of destination
+
+        uint16_t flayers = MAT_GET_DIM(filter, 0); // Get filter layers
+        uint16_t frows = MAT_GET_DIM(filter, 1); // Get filter rows
+        uint16_t fcols = MAT_GET_DIM(filter, 2); // Get filter columns
+
+        // Test if swap required (double-buffering action)
+        mat_t *tmp = dest;
+        if(CUR_SCRATCH[3]) { // Swap buffers
+                dest = inter;
+                inter = tmp;
+        }
+
+        // Restore variables that control place in computation
+        uint16_t k = CUR_SCRATCH[0]; // Current filter layer
+        uint16_t l = CUR_SCRATCH[1]; // Current filter row
+        uint16_t n = CUR_SCRATCH[2]; // Current filter column
+        uint16_t i_stride = CUR_SCRATCH[4] / params.stride[1]; // y stride
+        uint16_t j_stride = CUR_SCRATCH[5] / params.stride[2]; // x stride
+        // Apply filter weight to entire matrix update destination
+        for(uint16_t i = CUR_SCRATCH[4];
+                i < rows * params.stride[1]; i = (CUR_SCRATCH[4] += params.stride[1])){ // Loop continuation
+                for(uint16_t j = CUR_SCRATCH[5];
+                        j < cols * params.stride[2]; j = (CUR_SCRATCH[5] += params.stride[2])){  // Loop continuation
+                        fixed w = 0;
+                        // Check if same padding or current place in computation valid under valid padding
+                        if(!params.same_padding || (i + l < MAT_GET_DIM(src, 1) &&
+                                j + n < MAT_GET_DIM(src, 2))) {
+                                // Do multiplication of filter and source
+                                w = F_MUL(MAT_GET(filter, k, l, n),
+                                        MAT_GET(src, k, i + l, j + n));
+                        }
+                        // If first value being applied, then don't add to previous value 
+                        if(k == 0 && l == 0 && n == 0) { // Zero
+                                MAT_SET(dest, w, i_stride, j_stride);
+                                j_stride++;
+                                continue;
+                        }
+                        // Get intermediate value, update destination
+                        w = F_ADD(w, MAT_GET(inter, i_stride, j_stride));
+                        MAT_SET(dest, w, i_stride, j_stride);
+                        j_stride++;
+                }
+                j_stride = 0;
+                i_stride++;
+                // Reset inner-loop
+                CUR_SCRATCH[5] = 0;
+        }
+
+        scratch_bak[0] = k;
+        scratch_bak[1] = l;
+        // Update current place in computation (i.e. go to next filter value)
+        // Increment current filter layers
+        if(n + 1 == fcols && l + 1 == frows) {
+                scratch_bak[0] = k + 1;
+                scratch_bak[1] = 0;
+        } else if(n + 1 == fcols) { // Increment current filter rows
+                scratch_bak[1] = l + 1;
+        }
+        // Increment current filter columns
+        scratch_bak[2] = (n + 1 == fcols) ? 0 : n + 1;
+        // Switch buffers (determines which buffer writing to during next iteration)
+        scratch_bak[3] = CUR_SCRATCH[3] ^ 0x01;
+        scratch_bak[4] = 0; // Reset loop index
+        // Do the commits
+        write_to_gbuf((uint8_t *)(scratch_bak),
+                (uint8_t *)(CUR_SCRATCH), sizeof(uint16_t));
+        write_to_gbuf((uint8_t *)(scratch_bak + 1),
+                (uint8_t *)(CUR_SCRATCH + 1), sizeof(uint16_t));
+        write_to_gbuf((uint8_t *)(scratch_bak + 2),
+                (uint8_t *)(CUR_SCRATCH + 2), sizeof(uint16_t));
+        write_to_gbuf((uint8_t *)(scratch_bak + 4),
+                (uint8_t *)(CUR_SCRATCH + 4), sizeof(uint16_t));
+        if(!(k + 1 == flayers && l + 1 == frows && n + 1 == fcols)) {
+                write_to_gbuf((uint8_t *)(scratch_bak + 3),
+                        (uint8_t *)(CUR_SCRATCH + 3), sizeof(uint16_t));
+                transition_to(CUR_TASK);
+        }
+        // Test to see if final result written to secondary buffer
+        if(CUR_SCRATCH[3]) { // Copy secondary buffer to destination matrix
+                for(uint16_t i = CUR_SCRATCH[6]; i < rows; i = (++CUR_SCRATCH[6])){
+                        for(uint16_t j = CUR_SCRATCH[7]; j < cols; j = (++CUR_SCRATCH[7])){
+                                MAT_SET(inter, MAT_GET(dest, i, j), i, j);
+                        }
+                        CUR_SCRATCH[7] = 0;
+                }
+        }
+        // Remove items from stack (safe operation)
+        POP_STACK(mat_stack, 3);
+        // Setup clean (i.e. resetting scratch_bak and CUR_SCRATCH control variables)
+        setup_cleanup(CUR_TASK);
+        // Transition to cleanup and then to return_task
+        TRANSITION_TO(task_cleanup);
+}
+```
+
+#### Brief Intuition behind code
+All operations have roughly the same structure and follow:
+1. Get variables from stack and get required dimensions
+2. Do any other sort of setup required (e.g. setup position and index for sparse operations)
+3. Check and swap buffers if required
+4. Do a partial computation
+5. Update control variables
+6. Check stopping condition and transition to same task if not finished
+7. Copy secondary buffer into destination if required
+8. Cleanup and transition back
+
+**Note:** whenever a commit is required we utilize write_to_gbuf (from libalpaca) and transition to the current task to trigger Alpaca to commit.
 
 
 
