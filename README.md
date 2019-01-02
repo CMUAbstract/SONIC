@@ -3,7 +3,7 @@
 ### Overview
 SONIC & TAILS are two runtime systems for doing inference on intermittent embedded devices. SONIC is software only, while TAILS relies on hardware acceleration available on MSP430 devices with support for the Low-energy Accelerator (LEA). Both systems are built upon a task-based model (Alpaca) and target the MSP430 platform. This repository is a top-level repository, containing two example applications that utilize SONIC & TAILS.
 
-Please cite/refer to this [paper]() for more information.
+Please cite/refer to this [paper](https://arxiv.org/abs/1810.07751) for more information.
 
 ### Downloading
 This repository is a top-level repository that relies on git submodules for dependencies; when cloning please do the following:
@@ -122,12 +122,12 @@ Some operations like convolution take other parameters. These parameters include
 
 ```
   params.same_padding = false; // same_padding
-  params.size[0] = 1;
-  params.size[1] = 2; // x size
-  params.size[2] = 2; // y size
-  params.stride[0] = 1;
-  params.stride[1] = 1; // x stride
-  params.stride[2] = 1; // y stride
+  params.size[0] = 1; // z size (not implemented for >1)
+  params.size[1] = 2; // y size
+  params.size[2] = 2; // x size
+  params.stride[0] = 1; // z stride (not implemented for >1)
+  params.stride[1] = 1; // y stride
+  params.stride[2] = 1; // x stride
 ```
 
 #### Helpful Matrix Operations
