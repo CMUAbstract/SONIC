@@ -4,6 +4,8 @@ import numpy as np
 from scipy import signal
 from scipy import sparse
 
+# run as python scripts/unit_test.py
+
 def apply_f_lit(a):
 	return 'F_LIT(' + str(a) + ')'
 
@@ -120,7 +122,7 @@ tests = {
 
 def main():
 	for d in data:
-		path = os.path.join('params', d + '.param')
+		path = os.path.join('params/test', d + '.param')
 		if not os.path.exists(path):
 			data[d] = np.random.randint(-5, 5, size=data[d])
 			data[d][data[d] == 1] = 0

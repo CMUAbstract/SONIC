@@ -50,6 +50,10 @@ ifneq ($(CONT),)
 override CFLAGS += -DCONFIG_CONT=1
 endif
 
+ifneq ($(FIXED_TEST),)
+export LIBFIXED_TEST = 1
+endif
+
 ifeq ($(BACKEND), tails)
 export LIBDNN_LEA = 1
 SHARED_DEPS += libdsp libmspdriver

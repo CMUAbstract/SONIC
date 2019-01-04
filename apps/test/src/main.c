@@ -21,9 +21,6 @@
 #include <libdnn/nn.h>
 #include <libdnn/nonlinear.h>
 #include <libdnn/linalg.h>
-#include <libdnn/profile.h>
-
-#include "main.h"
 
 #include "headers/a_dense.h"
 #include "headers/a_sparse.h"
@@ -45,14 +42,25 @@ void clear_isDirty() {}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////Tasks///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-void task_debug();
+void init();
+void task_init();
+void task_compute();
+void task_exit();
 TASK(1, task_init);
 TASK(2, task_compute);
 TASK(3, task_exit);
-TASK(4, task_debug);
 
 ENTRY_TASK(task_init)
 INIT_FUNC(init)
+
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////Setup///////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+#ifndef CONFIG_CONSOLE
+	#pragma message "no console"
+	#define printf(fmt, ...) (void)0
+#endif
 
 static void init_hw() {
 	msp_watchdog_disable();
@@ -60,9 +68,6 @@ static void init_hw() {
 	msp_clock_setup();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////Setup///////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
 void init() {
 	init_hw();
 
@@ -75,24 +80,14 @@ void init() {
 
 	PRINTF(".%u.\r\n", curctx->task->idx);
 
+	P1DIR = 0x00;
     P2DIR = 0x00;   
     P3DIR = 0x00;   
     P4DIR = 0x00;   
+    P5DIR = 0x00;
+    P6DIR = 0x00;
     P7DIR = 0x00;   
-    P8DIR = 0x00;   
-
-    P6OUT = 0x00;
-    P6DIR = 0x07;
-
-    P5OUT = 0x01;
-    P5DIR = 0x01;
-
-#ifdef CONFIG_LED_DEBUG
-	P1DIR = 0x01;
-#else
-	P1OUT = 0x00;
-	P1DIR = 0x00;
-#endif
+    P8DIR = 0x00;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,15 +165,6 @@ __fram mat_t *b1 = &buf1;
 __fram mat_t *b2 = &buf2;
 
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////Debug///////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-__known fixed debug[0x100];
-void task_debug() {
-	MAT_DEBUG_DUMP(b1, 0, debug);
-	TRANSITION_TO(task_exit);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////Tasks///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 void task_init() {
@@ -192,6 +178,7 @@ void task_init() {
 
 void task_compute() {
 	uint16_t state = CUR_SCRATCH[0];
+	PRINTF("\r\n state: %u", state);
 	if(state == 0) {
 		MAT_RESHAPE(b2, 10, 1);
 		mat_t *mat_input_ptr = &mat_b_dense;
@@ -199,6 +186,7 @@ void task_compute() {
 			MAT_SET(b2, MAT_GET(mat_input_ptr, i, 0), i, 0);
 			CUR_SCRATCH[2] = 0;
 		}
+
 		scratch_bak[0] = 1;
 		scratch_bak[1] = 0;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
@@ -207,15 +195,16 @@ void task_compute() {
 			(uint8_t *)(CUR_SCRATCH + 1), sizeof(uint16_t));
 		transition_to(CUR_TASK);
 	} else if(state == 1) {
-		TASK_REF(task_d_fc)->info.return_task = TASK_REF(task_compute);
 		MAT_RESHAPE(b1, 15, 1);
 		mat_t *w_ptr = &mat_a_dense;
 		mat_t *b_ptr = NULL;
 		// Assumes b, w, dest, src in that order
 		PUSH_STACK(mat_stack, b_ptr, w_ptr, b1, b2);
+
 		scratch_bak[0] = 2;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
 			(uint8_t *)(CUR_SCRATCH), sizeof(uint16_t));
+		TASK_REF(task_d_fc)->info.return_task = TASK_REF(task_compute);
 		TRANSITION_TO(task_d_fc);
 	} else if(state == 2) {
 		PRINTF("\r\n dm_mul");
@@ -229,6 +218,7 @@ void task_compute() {
 			MAT_SET(b2, MAT_GET(mat_input_ptr, i, 0), i, 0);
 			CUR_SCRATCH[2] = 0;
 		}
+
 		scratch_bak[0] = 3;
 		scratch_bak[1] = 0;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
@@ -237,22 +227,22 @@ void task_compute() {
 			(uint8_t *)(CUR_SCRATCH + 1), sizeof(uint16_t));
 		transition_to(CUR_TASK);
 	} else if(state == 3) {
-		TASK_REF(task_s_fc)->info.return_task = TASK_REF(task_compute);
 		MAT_RESHAPE(b1, 15, 1);
 		mat_t *w_ptr = &mat_a_sparse;
 		mat_t *b_ptr = NULL;
 		// Assumes b, w, dest, src in that order
 		PUSH_STACK(mat_stack, b_ptr, w_ptr, b1, b2);
+
 		scratch_bak[0] = 4;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
 			(uint8_t *)(CUR_SCRATCH), sizeof(uint16_t));
+		TASK_REF(task_s_fc)->info.return_task = TASK_REF(task_compute);
 		TRANSITION_TO(task_s_fc);
 	} else if(state == 4) {
 		PRINTF("\r\n svm_mul");
 		MAT_RESHAPE(b1, 1, 15, 1);
 		MAT_DUMP(b1, 0);
 		MAT_RESHAPE(b1, 15, 1);
-		TRANSITION_TO(task_debug);
 
 		MAT_RESHAPE(b2, 1, 15, 10);
 		mat_t *mat_input_ptr = &mat_a_dense;
@@ -262,6 +252,7 @@ void task_compute() {
 			}
 			CUR_SCRATCH[2] = 0;
 		}
+
 		scratch_bak[0] = 5;
 		scratch_bak[1] = 0;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
@@ -274,15 +265,16 @@ void task_compute() {
 		params.stride[0] = 1;
 		params.stride[1] = 1;
 		params.stride[2] = 1;
-		TASK_REF(task_d_conv)->info.return_task = TASK_REF(task_compute);
 		MAT_RESHAPE(b1, 3, 13, 8);
 		mat_t *w_ptr = &mat_c_dense;
 		mat_t *b_ptr = NULL;
 		// Assumes b, w, dest, src in that order
 		PUSH_STACK(mat_stack, b_ptr, w_ptr, b1, b2);
+
 		scratch_bak[0] = 6;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
 			(uint8_t *)(CUR_SCRATCH), sizeof(uint16_t));
+		TASK_REF(task_d_conv)->info.return_task = TASK_REF(task_compute);
 		TRANSITION_TO(task_d_conv);
 	} else if(state == 6) {
 		PRINTF("\r\n dm_conv");
@@ -297,6 +289,7 @@ void task_compute() {
 			}
 			CUR_SCRATCH[2] = 0;
 		}
+
 		scratch_bak[0] = 7;
 		scratch_bak[1] = 0;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
@@ -309,15 +302,16 @@ void task_compute() {
 		params.stride[0] = 1;
 		params.stride[1] = 1;
 		params.stride[2] = 1;
-		TASK_REF(task_d_conv)->info.return_task = TASK_REF(task_compute);
 		MAT_RESHAPE(b1, 3, 15, 10);
 		mat_t *w_ptr = &mat_c_dense;
 		mat_t *b_ptr = NULL;
 		// Assumes b, w, dest, src in that order
 		PUSH_STACK(mat_stack, b_ptr, w_ptr, b1, b2);
+
 		scratch_bak[0] = 8;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
 			(uint8_t *)(CUR_SCRATCH), sizeof(uint16_t));
+		TASK_REF(task_d_conv)->info.return_task = TASK_REF(task_compute);
 		TRANSITION_TO(task_d_conv);
 	} else if(state == 8) {
 		PRINTF("\r\n dm_conv - same");
@@ -332,6 +326,7 @@ void task_compute() {
 			}
 			CUR_SCRATCH[2] = 0;
 		}
+
 		scratch_bak[0] = 9;
 		scratch_bak[1] = 0;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
@@ -344,15 +339,16 @@ void task_compute() {
 		params.stride[0] = 1;
 		params.stride[1] = 2;
 		params.stride[2] = 2;
-		TASK_REF(task_d_conv)->info.return_task = TASK_REF(task_compute);
 		MAT_RESHAPE(b1, 3, 7, 4);
 		mat_t *w_ptr = &mat_c_dense;
 		mat_t *b_ptr = NULL;
 		// Assumes b, w, dest, src in that order
 		PUSH_STACK(mat_stack, b_ptr, w_ptr, b1, b2);
+
 		scratch_bak[0] = 10;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
 			(uint8_t *)(CUR_SCRATCH), sizeof(uint16_t));
+		TASK_REF(task_d_conv)->info.return_task = TASK_REF(task_compute);
 		TRANSITION_TO(task_d_conv);
 	} else if(state == 10) {
 		PRINTF("\r\n dm_conv - stride");
@@ -367,6 +363,7 @@ void task_compute() {
 			}
 			CUR_SCRATCH[2] = 0;
 		}
+
 		scratch_bak[0] = 11;
 		scratch_bak[1] = 0;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
@@ -379,7 +376,6 @@ void task_compute() {
 		params.stride[0] = 1;
 		params.stride[1] = 1;
 		params.stride[2] = 1;
-		TASK_REF(task_s_conv)->info.return_task = TASK_REF(task_compute);
 		MAT_RESHAPE(b1, 3, 13, 8);
 		mat_t *w_ptr = &mat_c_sparse;
 		mat_t *b_ptr = NULL;
@@ -388,6 +384,7 @@ void task_compute() {
 		scratch_bak[0] = 12;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
 			(uint8_t *)(CUR_SCRATCH), sizeof(uint16_t));
+		TASK_REF(task_s_conv)->info.return_task = TASK_REF(task_compute);
 		TRANSITION_TO(task_s_conv);
 	} else if(state == 12) {
 		PRINTF("\r\n sm_conv");
@@ -402,6 +399,7 @@ void task_compute() {
 			}
 			CUR_SCRATCH[2] = 0;
 		}
+
 		scratch_bak[0] = 13;
 		scratch_bak[1] = 0;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
@@ -414,15 +412,16 @@ void task_compute() {
 		params.stride[0] = 1;
 		params.stride[1] = 1;
 		params.stride[2] = 1;
-		TASK_REF(task_s_conv)->info.return_task = TASK_REF(task_compute);
 		MAT_RESHAPE(b1, 3, 15, 10);
 		mat_t *w_ptr = &mat_c_sparse;
 		mat_t *b_ptr = NULL;
 		// Assumes b, w, dest, src in that order
 		PUSH_STACK(mat_stack, b_ptr, w_ptr, b1, b2);
+
 		scratch_bak[0] = 14;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
 			(uint8_t *)(CUR_SCRATCH), sizeof(uint16_t));
+		TASK_REF(task_s_conv)->info.return_task = TASK_REF(task_compute);
 		TRANSITION_TO(task_s_conv);
 	} else if(state == 14) {
 		PRINTF("\r\n sm_conv - same");
@@ -437,6 +436,7 @@ void task_compute() {
 			}
 			CUR_SCRATCH[2] = 0;
 		}
+
 		scratch_bak[0] = 15;
 		scratch_bak[1] = 0;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
@@ -449,7 +449,6 @@ void task_compute() {
 		params.stride[0] = 1;
 		params.stride[1] = 2;
 		params.stride[2] = 2;
-		TASK_REF(task_s_conv)->info.return_task = TASK_REF(task_compute);
 		MAT_RESHAPE(b1, 3, 7, 4);
 		mat_t *w_ptr = &mat_c_sparse;
 		mat_t *b_ptr = NULL;
@@ -458,20 +457,17 @@ void task_compute() {
 		scratch_bak[0] = 16;
 		write_to_gbuf((uint8_t *)(scratch_bak), 
 			(uint8_t *)(CUR_SCRATCH), sizeof(uint16_t));
+		TASK_REF(task_s_conv)->info.return_task = TASK_REF(task_compute);
 		TRANSITION_TO(task_s_conv);
 	} else if(state == 16) {
 		PRINTF("\r\n sm_conv - stride");
 		MAT_DUMP(b1, 0);
 		MAT_DUMP(b1, 1);
-		exit(0);
 	}
 	TRANSITION_TO(task_exit);
 }
 
 void task_exit() {
-    P6OUT = 0x01; // Turn on
-    __delay_cycles(0x400);
-    P6OUT = 0x00; // Turn off
 	P1OUT = 0x01;
 	P1DIR = 0x01;
 	exit(0);
