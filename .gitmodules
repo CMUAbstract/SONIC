@@ -10,9 +10,6 @@
 [submodule "ext/libmspdriver"]
 	path = ext/libmspdriver
 	url = https://github.com/CMUAbstract/libmspdriver
-[submodule "ext/libalpaca"]
-	path = ext/libalpaca
-	url = https://github.com/G-ram/libalpaca
 [submodule "ext/libmsp"]
 	path = ext/libmsp
 	url = https://github.com/CMUAbstract/libmsp
@@ -28,3 +25,6 @@
 [submodule "ext/libmspbuiltins"]
 	path = ext/libmspbuiltins
 	url = https://github.com/CMUAbstract/libmspbuiltins
+[submodule "ext/libalpaca"]
+	path = ext/libalpaca
+	url = https://github.com/CMUAbstract/libalpaca-SONIC
