@@ -60,7 +60,7 @@ tools/
 The following list of commands summarizes how to build the two example applications and how to change build parameters in order to utilize TAILS or SONIC for various contexts. Replace <APP> with the target application, so for mnist `<APP>` is mnist and for test `<APP>` is test.
 
 1. Clean dependencies: `make apps/<APP>/bld/gcc/depclean`
-2. Build dependencies: `make apps/<APP>/bld/gcc/depclean`
+2. Build dependencies: `make apps/<APP>/bld/gcc/dep`
 3. Build target: `make apps/<APP>/bld/gcc/all BACKEND=sonic`
     - `BACKEND` determines which backend to use. Set to sonic for SONIC, tails for TAILS.
     - `CONSOLE` set to one to enable printf debugging.
